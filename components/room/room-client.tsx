@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useGameStore, readPersistedIdentity } from "@/lib/gameStore";
 import type { Player, RoomPublicState } from "@/types/game";
+import { gameCommand } from "@/lib/supabaseGameApi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,8 @@ export default function RoomClient({ code }: { code: string }) {
   const [rounds, setRounds] = useState("8");
   const [desc, setDesc] = useState("");
   const [guess, setGuess] = useState("#22C55E");
+  const [joinPassword, setJoinPassword] = useState("");
+  const [roomInfo, setRoomInfo] = useState<{ exists: boolean; isPublic?: boolean; playersCount?: number } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const normalizedCode = useMemo(() => code.toUpperCase(), [code]);
@@ -92,6 +95,21 @@ export default function RoomClient({ code }: { code: string }) {
   useEffect(() => {
     connect().catch(() => {});
   }, [connect]);
+
+  useEffect(() => {
+    // Descobrir se a sala é pública/privada antes de entrar (para pedir senha)
+    (async () => {
+      try {
+        const res = await gameCommand<{ ok: true; exists: boolean; room?: { isPublic: boolean; playersCount: number } }>({
+          type: "room_info",
+          code: normalizedCode,
+        } as any);
+        setRoomInfo({ exists: res.exists, isPublic: res.room?.isPublic, playersCount: res.room?.playersCount });
+      } catch {
+        setRoomInfo(null);
+      }
+    })();
+  }, [normalizedCode]);
 
   useEffect(() => {
     if (lastError) toast.error(lastError);
@@ -121,7 +139,7 @@ export default function RoomClient({ code }: { code: string }) {
     const playerName = (name || "Jogador").trim();
     setBusy(true);
     try {
-      await joinRoom(normalizedCode, playerName);
+      await joinRoom(normalizedCode, playerName, { password: joinPassword || undefined });
     } catch {
       toast.error("Falha ao entrar na sala.");
     } finally {
@@ -182,10 +200,24 @@ export default function RoomClient({ code }: { code: string }) {
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Sala {normalizedCode}</CardTitle>
-            <CardDescription>Entre com seu nome para participar.</CardDescription>
+            <CardDescription>
+              {roomInfo?.exists === false
+                ? "Sala não encontrada."
+                : roomInfo?.isPublic === false
+                  ? "Sala privada: digite a senha para entrar."
+                  : "Entre com seu nome para participar."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" />
+            {roomInfo?.isPublic === false ? (
+              <Input
+                value={joinPassword}
+                onChange={(e) => setJoinPassword(e.target.value)}
+                placeholder="Senha da sala"
+                type="password"
+              />
+            ) : null}
             <Button disabled={busy} className="w-full" onClick={onJoin}>
               Entrar na sala
             </Button>

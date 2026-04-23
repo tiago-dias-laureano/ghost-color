@@ -16,8 +16,12 @@ type GameState = {
   presenceUnsub?: () => void;
   setIdentity: (v: ClientIdentity | null) => void;
   connect: () => Promise<void>;
-  createRoom: (name: string, roundsTotal?: number) => Promise<{ roomCode: string; playerId: string }>;
-  joinRoom: (code: string, name: string) => Promise<{ roomCode: string; playerId: string }>;
+  createRoom: (
+    name: string,
+    roundsTotal?: number,
+    opts?: { isPublic?: boolean; password?: string },
+  ) => Promise<{ roomCode: string; playerId: string }>;
+  joinRoom: (code: string, name: string, opts?: { password?: string }) => Promise<{ roomCode: string; playerId: string }>;
   startGame: (roundsTotal?: number) => Promise<void>;
   submitDescription: (description: string) => Promise<void>;
   submitGuess: (guessedHex: string) => Promise<void>;
@@ -62,16 +66,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
       const { error } = await supabase.auth.signInAnonymously();
-      if (error) throw error;
+      if (error) {
+        // 422 aqui normalmente significa que "Anonymous sign-ins" está desativado no Supabase Auth.
+        throw new Error(
+          "Falha no login anônimo. Ative em Supabase → Authentication → Providers → Anonymous (ou use outro método de auth).",
+        );
+      }
     }
   },
 
-  createRoom: async (name, roundsTotal) => {
+  createRoom: async (name, roundsTotal, opts) => {
     await get().connect();
     const res = await gameCommand<{ ok: true; roomCode: string; roomId: string; playerId: string; playerToken: string }>({
       type: "create_room",
       name,
       roundsTotal,
+      isPublic: opts?.isPublic,
+      password: opts?.password,
     });
     const identity: ClientIdentity = { roomCode: res.roomCode, playerId: res.playerId, name, playerToken: res.playerToken };
     get().setIdentity(identity);
@@ -80,7 +91,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     return { roomCode: res.roomCode, playerId: res.playerId };
   },
 
-  joinRoom: async (code, name) => {
+  joinRoom: async (code, name, opts) => {
     await get().connect();
     const prev = get().identity;
     const playerId = prev?.roomCode?.toUpperCase() === code.toUpperCase() ? prev.playerId : undefined;
@@ -89,6 +100,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       code,
       name,
       playerId,
+      password: opts?.password,
     });
     const identity: ClientIdentity = { roomCode: res.roomCode, playerId: res.playerId, name, playerToken: res.playerToken };
     get().setIdentity(identity);
