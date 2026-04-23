@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Color Match (Memória da Cor) — MVP
 
-## Getting Started
+Jogo multiplayer em tempo real: **um jogador descreve uma cor**, o próximo **tenta recriar** com um color picker, e o sistema calcula a **nota (0 a 10)** usando **DeltaE (CIEDE2000/LAB)**.
 
-First, run the development server:
+## Como rodar localmente
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Como jogar (fluxo rápido)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Criar sala** na Home (vira host).
+- Compartilhar o **código** ou o **link** com outros jogadores.
+- No lobby, o host clica **Iniciar partida**.
+- O descritor vê a cor secreta e envia uma descrição.
+- O adivinhador vê só a descrição e envia um palpite.
+- A tela mostra **cor original vs escolhida**, **DeltaE** e **nota 0..10**.
+- O host avança em **Próxima rodada** até finalizar.
 
-## Learn More
+## Arquitetura do MVP
 
-To learn more about Next.js, take a look at the following resources:
+- **App Router (UI)**: `app/`
+- **Realtime (Socket.IO)**: `pages/api/socket.ts`
+- **Estado local**: Zustand (`lib/gameStore.ts`)
+- **Persistência**: em memória (processo Node) via `server/roomStore.ts`
+- **Score de cor**: `server/color.ts` com `colorjs.io` (DeltaE 2000)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> Nota: por ser **persistência em memória**, reiniciar o `npm run dev` apaga as salas/placares.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Próximas melhorias sugeridas
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Persistência real: PostgreSQL + Prisma (Room/Player/Round) e replays
+- Autoplay: timer para avançar rodada e mostrar resultados por X segundos
+- Configurações do host: ordem manual, número de rodadas por pares, modo “corrente” vs “sempre host”
+- Anti-cheat: ocultar cor do descritor no client (hoje ela chega via evento privado do socket)
+- UI/UX: animações, confetes no vencedor, indicadores de proximidade (gradiente/barra)
+- Escalabilidade: redis/pubsub e múltiplas instâncias do servidor

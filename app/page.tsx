@@ -1,65 +1,127 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { nanoid } from "nanoid";
+import { useGameStore } from "@/lib/gameStore";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 
 export default function Home() {
+  const router = useRouter();
+  const createRoom = useGameStore((s) => s.createRoom);
+  const joinRoom = useGameStore((s) => s.joinRoom);
+
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [rounds, setRounds] = useState("8");
+  const [busy, setBusy] = useState(false);
+
+  const suggestedName = useMemo(() => `Jogador ${nanoid(3).toUpperCase()}`, []);
+
+  async function onCreate() {
+    const playerName = (name || suggestedName).trim();
+    const roundsTotal = Math.max(1, Math.min(30, parseInt(rounds || "8", 10) || 8));
+    setBusy(true);
+    try {
+      const { roomCode } = await createRoom(playerName, roundsTotal);
+      router.push(`/room/${roomCode}`);
+    } catch {
+      toast.error("Não foi possível criar a sala.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onJoin() {
+    const playerName = (name || suggestedName).trim();
+    const roomCode = code.trim().toUpperCase();
+    if (!roomCode) return toast.message("Digite o código da sala.");
+    setBusy(true);
+    try {
+      const { roomCode: joinedCode } = await joinRoom(roomCode, playerName);
+      router.push(`/room/${joinedCode}`);
+    } catch {
+      toast.error("Não foi possível entrar na sala.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="flex flex-1 items-center justify-center bg-gradient-to-b from-background to-muted/40 px-4 py-10">
+      <div className="w-full max-w-4xl">
+        <div className="mb-8 space-y-2 text-center">
+          <div className="mx-auto flex w-full max-w-xl items-center justify-center gap-4">
+            <Image
+              src="/imagem_2026-04-23_155409097.png"
+              alt="Logo do jogo"
+              width={110}
+              height={110}
+              priority
+              className="h-[88px] w-[88px] drop-shadow-sm md:h-[110px] md:w-[110px]"
+            />
+            <div className="text-left">
+              <h1 className="text-4xl font-semibold tracking-tight">Ghost Color</h1>
+              <div className="text-sm text-muted-foreground">Memória da Cor</div>
+            </div>
+          </div>
+          <p className="text-muted-foreground">
+            Um jogador descreve uma cor. O próximo tenta recriar. O resto é caos (em tempo real).
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Criar sala</CardTitle>
+              <CardDescription>Você será o host e controla o início e as rodadas.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Seu nome</div>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={suggestedName} />
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Rodadas</div>
+                <Input value={rounds} onChange={(e) => setRounds(e.target.value)} inputMode="numeric" />
+              </div>
+              <Button disabled={busy} className="w-full" onClick={onCreate}>
+                Criar e entrar
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Entrar em sala</CardTitle>
+              <CardDescription>Use o código (ou cole do link do host).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Seu nome</div>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={suggestedName} />
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Código da sala</div>
+                <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="ABCDE" />
+              </div>
+              <Button variant="secondary" disabled={busy} className="w-full" onClick={onJoin}>
+                Entrar
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-      </main>
+
+        <div className="mt-8 text-center text-sm text-muted-foreground">
+          Dica: abra em duas abas/janelas para simular 2 jogadores rapidamente.
+        </div>
+      </div>
     </div>
   );
 }
