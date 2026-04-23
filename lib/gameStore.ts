@@ -27,6 +27,7 @@ type GameState = {
   submitGuess: (guessedHex: string) => Promise<void>;
   nextRound: () => Promise<void>;
   sync: () => Promise<void>;
+  refreshState: () => Promise<void>;
 };
 
 function persistIdentity(id: ClientIdentity | null) {
@@ -136,6 +137,94 @@ export const useGameStore = create<GameState>((set, get) => ({
     await gameCommand({ type: "next_round", code: id.roomCode, playerId: id.playerId, playerToken: id.playerToken } as any);
     set({ secretColorHex: null });
     await get().sync();
+  },
+
+  refreshState: async () => {
+    const identity = get().identity;
+    const roomId = get().roomId;
+    if (!identity || !roomId) return;
+    const code = identity.roomCode.toUpperCase();
+
+    const resp = await gameCommand<{
+      ok: true;
+      state: {
+        room: any;
+        players: any[];
+        rounds: any[];
+      };
+    }>({ type: "get_state", code, playerId: identity.playerId, playerToken: identity.playerToken } as any);
+
+    const roomRow = resp.state.room;
+    const players = resp.state.players;
+    const rounds = resp.state.rounds;
+
+    const roundIndex = roomRow?.round_index ?? 0;
+    const currentRoundRow = rounds?.find((r) => r.idx === roundIndex);
+    const historyRows = (rounds ?? []).filter((r) => r.idx < roundIndex);
+
+    const roomState: RoomPublicState = {
+      id: roomRow!.id,
+      code: roomRow!.code,
+      hostId: roomRow!.host_player_id,
+      status: roomRow!.status,
+      phase: roomRow!.phase,
+      roundsTotal: roomRow!.rounds_total,
+      roundIndex: roomRow!.round_index,
+      turnIndex: roomRow!.turn_index,
+      players: (players ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        scoreTotal: Number(p.score_total ?? 0),
+        attempts: p.attempts ?? 0,
+        connected: !!p.connected,
+      })),
+      currentRound: currentRoundRow
+        ? {
+            id: currentRoundRow.id,
+            index: currentRoundRow.idx,
+            describerPlayerId: currentRoundRow.describer_player_id,
+            guesserPlayerId: currentRoundRow.guesser_player_id,
+            originalColorHex: currentRoundRow.original_color_hex ?? undefined,
+            description: currentRoundRow.description ?? undefined,
+            guessedColorHex: currentRoundRow.guessed_color_hex ?? undefined,
+            deltaE: currentRoundRow.delta_e != null ? Number(currentRoundRow.delta_e) : undefined,
+            score: currentRoundRow.score != null ? Number(currentRoundRow.score) : undefined,
+            createdAt: new Date(currentRoundRow.created_at).getTime(),
+          }
+        : undefined,
+      history: historyRows.map((r) => ({
+        id: r.id,
+        index: r.idx,
+        describerPlayerId: r.describer_player_id,
+        guesserPlayerId: r.guesser_player_id,
+        originalColorHex: r.original_color_hex ?? undefined,
+        description: r.description ?? undefined,
+        guessedColorHex: r.guessed_color_hex ?? undefined,
+        deltaE: r.delta_e != null ? Number(r.delta_e) : undefined,
+        score: r.score != null ? Number(r.score) : undefined,
+        createdAt: new Date(r.created_at).getTime(),
+      })),
+      updatedAt: new Date(roomRow!.updated_at).getTime(),
+    };
+
+    set({ room: roomState });
+
+    const isDescriber = roomState.currentRound?.describerPlayerId === identity.playerId && roomState.phase === "describe";
+    if (!isDescriber) {
+      set({ secretColorHex: null });
+    } else {
+      try {
+        const sec = await gameCommand<{ ok: true; secret: string | null }>({
+          type: "get_secret",
+          code,
+          playerId: identity.playerId,
+          playerToken: identity.playerToken,
+        } as any);
+        set({ secretColorHex: sec.secret });
+      } catch {
+        set({ secretColorHex: null });
+      }
+    }
   },
 
   sync: async () => {
@@ -250,6 +339,13 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     await fetchState();
 
+    // Broadcast seguro (private channel) - dispara refresh imediato sem expor rows sensíveis
+    const broadcastChannel = supabase.channel(`room:${roomId}`, { config: { private: true } });
+    broadcastChannel.on("broadcast", { event: "ROOM_EVENT" }, () => {
+      get().refreshState().catch(() => {});
+    });
+    await broadcastChannel.subscribe();
+
     // Presence (online/offline real) - não depende do banco
     const presenceChannel = supabase.channel(`presence:${code}`, {
       config: { presence: { key: identity.playerId } },
@@ -312,6 +408,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set({
       unsub: () => {
+        supabase.removeChannel(broadcastChannel);
         supabase.removeChannel(channel);
       },
     });

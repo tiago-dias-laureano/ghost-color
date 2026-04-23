@@ -81,6 +81,7 @@ export default function RoomClient({ code }: { code: string }) {
   const submitGuess = useGameStore((s) => s.submitGuess);
   const nextRound = useGameStore((s) => s.nextRound);
   const sync = useGameStore((s) => s.sync);
+  const refreshState = useGameStore((s) => s.refreshState);
 
   const [name, setName] = useState("");
   const [rounds, setRounds] = useState("8");
@@ -134,6 +135,18 @@ export default function RoomClient({ code }: { code: string }) {
   const isHost = !!room && !!myId && room.hostId === myId;
   const isDescriber = !!room && !!myId && current?.describerPlayerId === myId && room.phase === "describe";
   const isGuesser = !!room && !!myId && current?.guesserPlayerId === myId && room.phase === "guess";
+
+  // Fallback: enquanto estiver no lobby, puxa estado periodicamente.
+  // Isso cobre casos em que Postgres Changes não dispara por config/RLS.
+  useEffect(() => {
+    if (!isInThisRoom) return;
+    if (!room) return;
+    if (room.phase !== "lobby") return;
+    const t = window.setInterval(() => {
+      refreshState().catch(() => {});
+    }, 2000);
+    return () => window.clearInterval(t);
+  }, [isInThisRoom, room?.phase, refreshState, room]);
 
   async function onJoin() {
     const playerName = (name || "Jogador").trim();
