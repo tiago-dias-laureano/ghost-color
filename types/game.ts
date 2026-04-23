@@ -5,6 +5,7 @@ export type Player = {
   id: string;
   name: string;
   scoreTotal: number;
+  attempts?: number;
   connected: boolean;
 };
 
@@ -40,5 +41,6 @@ export type ClientIdentity = {
   playerId: string;
   roomCode: string;
   name: string;
+  playerToken: string;
 };
 

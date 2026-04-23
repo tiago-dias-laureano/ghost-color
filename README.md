@@ -21,15 +21,25 @@ Abra `http://localhost:3000`.
 - A tela mostra **cor original vs escolhida**, **DeltaE** e **nota 0..10**.
 - O host avança em **Próxima rodada** até finalizar.
 
-## Arquitetura do MVP
+## Arquitetura do MVP (Supabase)
 
 - **App Router (UI)**: `app/`
-- **Realtime (Socket.IO)**: `pages/api/socket.ts`
-- **Estado local**: Zustand (`lib/gameStore.ts`)
-- **Persistência**: em memória (processo Node) via `server/roomStore.ts`
+- **Comandos do jogo**: Supabase **Edge Function** `ghost-color-game`
+- **Realtime**: Supabase Realtime (Postgres Changes) no client
+- **Estado local**: Zustand (`lib/gameStore.ts`) + subscriptions Realtime
+- **Persistência**: Postgres (Supabase) em `rooms`, `players`, `rounds`
 - **Score de cor**: `server/color.ts` com `colorjs.io` (DeltaE 2000)
 
-> Nota: por ser **persistência em memória**, reiniciar o `npm run dev` apaga as salas/placares.
+> Nota: agora o estado é persistido no Supabase. As escritas diretas estão bloqueadas por RLS e passam pela Edge Function.
+
+## Variáveis de ambiente
+
+Crie/ajuste `.env.local`:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+O resto (service role) fica configurado no lado do Supabase para a Edge Function.
 
 ## Próximas melhorias sugeridas
 
