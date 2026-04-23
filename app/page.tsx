@@ -58,7 +58,7 @@ export default function Home() {
         <div className="mb-8 space-y-2 text-center">
           <div className="mx-auto flex w-full max-w-xl items-center justify-center gap-4">
             <Image
-              src="/imagem_2026-04-23_155409097.png"
+              src="/c24adf58-6069-4228-bdf5-1c4a2954a0fb.svg"
               alt="Logo do jogo"
               width={110}
               height={110}

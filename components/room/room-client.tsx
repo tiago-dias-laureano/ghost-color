@@ -230,7 +230,7 @@ export default function RoomClient({ code }: { code: string }) {
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <Image
-              src="/imagem_2026-04-23_155409097.png"
+              src="/c24adf58-6069-4228-bdf5-1c4a2954a0fb.svg"
               alt="Logo do jogo"
               width={44}
               height={44}

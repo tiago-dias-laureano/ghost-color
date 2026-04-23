@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Server as HttpServer } from "http";
+import type { Socket as NetSocket } from "net";
 import { Server as IOServer } from "socket.io";
 import type { Socket } from "socket.io";
 import {
@@ -14,12 +16,9 @@ import {
   submitGuess,
 } from "@/server/roomStore";
 
+type SocketServer = HttpServer & { io?: IOServer };
 type NextApiResponseWithSocket = NextApiResponse & {
-  socket: NextApiResponse["socket"] & {
-    server: NextApiResponse["socket"]["server"] & {
-      io?: IOServer;
-    };
-  };
+  socket: NonNullable<NextApiResponse["socket"]> & NetSocket & { server: SocketServer };
 };
 
 function safeEmitRoom(io: IOServer, roomCode: string) {
@@ -43,6 +42,10 @@ export const config = {
 };
 
 export default function handler(req: NextApiRequest, res: NextApiResponseWithSocket) {
+  if (!res.socket) {
+    res.status(500).json({ ok: false });
+    return;
+  }
   if (!res.socket.server.io) {
     const io = new IOServer(res.socket.server, {
       path: "/api/socket",
